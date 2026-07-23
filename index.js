@@ -10,11 +10,18 @@ const fetch   = require('node-fetch');
 const Database = require('better-sqlite3');
 
 // ── Environment ───────────────────────────────────────────────────────────────
-const DISCORD_TOKEN    = process.env.DISCORD_TOKEN;
-const MISTRAL_API_KEY  = process.env.MISTRAL_API_KEY;
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 
-if (!DISCORD_TOKEN)   { console.error('Missing DISCORD_TOKEN'); process.exit(1); }
-if (!MISTRAL_API_KEY) { console.error('Missing MISTRAL_API_KEY'); process.exit(1); }
+// Support one key (MISTRAL_API_KEY) or many comma-separated (MISTRAL_API_KEYS)
+const _rawKeys = (process.env.MISTRAL_API_KEYS || process.env.MISTRAL_API_KEY || '').trim();
+const MISTRAL_KEYS = _rawKeys.split(',').map(k => k.trim()).filter(Boolean);
+
+if (!DISCORD_TOKEN)       { console.error('Missing DISCORD_TOKEN');   process.exit(1); }
+if (!MISTRAL_KEYS.length) { console.error('Missing MISTRAL_API_KEY(S)'); process.exit(1); }
+
+let _keyIndex = 0;
+function getApiKey() { return MISTRAL_KEYS[_keyIndex % MISTRAL_KEYS.length]; }
+function rotateKey()  { _keyIndex = (_keyIndex + 1) % MISTRAL_KEYS.length; }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const OWNER_ID = '1459268330933326087';
@@ -93,18 +100,45 @@ function buildSyncContext() {
     return lines.join('\n');
 }
 
+const RURP_KNOWLEDGE = `
+ABOUT RURP:
+RURP stands for Realistic Union RP. It is a growing Realistic Union Roleplay community with an upcoming game. The server is friendly, active, and focused on building a strong roleplay community. The server founder is @oz57hz. Invite: discord.gg/ehrurp
+
+PARTNERSHIP RULES:
+- Servers must have 150+ members (excluding bots).
+- The server owner and at least 3 staff members must join RURP.
+- 250 members and below: 2 representatives required.
+- 200 members and below: 3 representatives required.
+- Servers below 100 members must provide an @everyone ping.
+- Representatives must remain in the server after partnership; leaving terminates it. A representative can be swapped via a ticket.
+- The partner server must have a dedicated partnership channel.
+- The partner server must comply with Roblox and Discord ToS.
+- Must have a clean, safe environment — no NSFW, racism, homophobia, or universally unacceptable behaviour.
+- Partnerships exist to grow both servers respectfully. Any disrespect results in termination.
+
+STAFF APPLICATIONS:
+- Open to anyone aged 13 and above.
+- Applicants must be active, respectful, mature, calm under pressure, and able to communicate clearly.
+- Applications channel: <#1499433931223597188>
+
+KEY CHANNELS:
+- Applications: <#1499433931223597188>
+- RP Stats: <#1499433935267168468>
+- Server Status: <#1506108882047602688>
+`.trim();
+
 function buildSystemPrompt() {
     const context = buildSyncContext();
     const contextBlock = context
-        ? `\n\nSERVER CONTEXT (recent messages from RURP):\n${context}\n`
+        ? `\n\nRECENT SERVER MESSAGES (for additional context):\n${context}\n`
         : '';
     return (
         `You are the AI assistant for the RURP Discord server. ` +
         `You are helpful, precise, and professional. ` +
         `You do not use emojis. ` +
-        `If a request is inappropriate, harmful, or irrelevant, respond briefly that you cannot help with that and move on. ` +
-        `Do not explain your refusal at length. ` +
-        `Use the server context below to answer questions about RURP accurately.` +
+        `If a request is inappropriate, harmful, or irrelevant, respond with one sentence declining and move on — do not elaborate. ` +
+        `Use the knowledge below to answer questions about RURP accurately.\n\n` +
+        RURP_KNOWLEDGE +
         contextBlock
     );
 }
@@ -126,21 +160,33 @@ async function callMistral(channelId, userContent, hasImage) {
         { role: 'user', content: userContent },
     ];
 
-    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-        },
-        body: JSON.stringify({ model, messages, max_tokens: 1024, temperature: 0.6 }),
-    });
+    // Try each key once before giving up
+    let lastErr;
+    for (let attempt = 0; attempt < MISTRAL_KEYS.length; attempt++) {
+        const key = getApiKey();
+        const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`,
+            },
+            body: JSON.stringify({ model, messages, max_tokens: 1024, temperature: 0.6 }),
+        });
 
-    if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Mistral error ${res.status}: ${err}`);
+        if (res.status === 429 || res.status === 401) {
+            // Rate-limited or invalid key — rotate and retry
+            rotateKey();
+            lastErr = `Mistral ${res.status} on key index ${_keyIndex}`;
+            continue;
+        }
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`Mistral error ${res.status}: ${err}`);
+        }
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content || null;
     }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
+    throw new Error(`All Mistral keys exhausted. Last error: ${lastErr}`);
 }
 
 // ── Discord client ────────────────────────────────────────────────────────────
