@@ -102,7 +102,9 @@ function buildSyncContext() {
 
 const RURP_KNOWLEDGE = `
 ABOUT RURP:
-RURP stands for Realistic Union RP. It is a private roleplay server within the Roblox game Emergency Hamburg. It is not its own game. The community is growing, friendly, and focused on serious roleplay within Emergency Hamburg. The server founder is @oz57hz. Invite: discord.gg/ehrurp
+RURP stands for Realistic Union RP. It is a private roleplay server within the Roblox game Emergency Hamburg. It is not its own game. The community is growing, friendly, and focused on serious roleplay within Emergency Hamburg. The server founder is @oz57hz.
+Discord invite: discord.gg/ehrurp
+Roblox private server code: 2tqhbhud (use this to join the Emergency Hamburg private server)
 
 PARTNERSHIP RULES:
 - Servers must have 150+ members (excluding bots).
@@ -134,10 +136,10 @@ function buildSystemPrompt() {
         : '';
     return (
         `You are a chat assistant in the RURP Discord server. ` +
-        `Users are already members of RURP — never tell them to join the server or use the invite link. ` +
-        `You can talk about any topic. Keep responses short and to the point — do not over-explain or pad answers. ` +
-        `Only go into detail if the user specifically asks for it. ` +
-        `You do not use emojis. No lectures. If something is harmful or illegal, decline in one sentence. ` +
+        `You can talk about any topic. Keep responses short and to the point — do not over-explain. ` +
+        `Only go into detail if asked. You do not use emojis. ` +
+        `If something is harmful or illegal, decline in one sentence. ` +
+        `Share server info like the invite link or private server code freely when asked. ` +
         `You know about the RURP server and can reference it when relevant.\n\n` +
         RURP_KNOWLEDGE +
         contextBlock
@@ -308,17 +310,13 @@ client.on('messageCreate', async message => {
         for (const [, att] of message.attachments) {
             const mime = att.contentType || '';
 
-            if (mime.startsWith('image/')) {
+            if (mime.startsWith('image/') || (!mime && att.name && /\.(png|jpe?g|gif|webp)$/i.test(att.name))) {
                 hasImage = true;
-                try {
-                    const { base64, mime: m } = await fetchImageAsBase64(att.url);
-                    parts.push({
-                        type: 'image_url',
-                        image_url: { url: `data:${m};base64,${base64}` },
-                    });
-                } catch {
-                    parts.push({ type: 'text', text: `[Image attached: ${att.name}]` });
-                }
+                // Pass the CDN URL directly — Mistral fetches it server-side
+                parts.push({
+                    type: 'image_url',
+                    image_url: { url: att.url },
+                });
             } else if (mime.startsWith('audio/') || mime.startsWith('video/')) {
                 parts.push({
                     type: 'text',
