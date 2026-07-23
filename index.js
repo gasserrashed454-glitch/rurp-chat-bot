@@ -102,7 +102,7 @@ function buildSyncContext() {
 
 const RURP_KNOWLEDGE = `
 ABOUT RURP:
-RURP stands for Realistic Union RP. It is a growing Realistic Union Roleplay community with an upcoming game. The server is friendly, active, and focused on building a strong roleplay community. The server founder is @oz57hz. Invite: discord.gg/ehrurp
+RURP stands for Realistic Union RP. It is a private roleplay server within the Roblox game Emergency Hamburg. It is not its own game. The community is growing, friendly, and focused on serious roleplay within Emergency Hamburg. The server founder is @oz57hz. Invite: discord.gg/ehrurp
 
 PARTNERSHIP RULES:
 - Servers must have 150+ members (excluding bots).
