@@ -1,13 +1,13 @@
 'use strict';
 
 const {
-    Client, GatewayIntentBits, Partials, MessageFlags,
-    PermissionsBitField, ChannelType
+    Client, GatewayIntentBits, Partials,
+    ChannelType
 } = require('discord.js');
 const http    = require('http');
 const https   = require('https');
 const fetch   = require('node-fetch');
-const Database = require('better-sqlite3');
+const { DatabaseSync: Database } = require('node:sqlite');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -195,7 +195,6 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
     ],
     partials: [Partials.Channel, Partials.Message],
 });
@@ -235,8 +234,7 @@ client.on('messageCreate', async message => {
             if (!guild) return reply.edit({ content: 'Must be used in a server.' });
 
             const textChannels = guild.channels.cache.filter(ch =>
-                ch.type === ChannelType.GuildText &&
-                ch.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.ReadMessageHistory)
+                ch.type === ChannelType.GuildText
             );
 
             let total = 0;
