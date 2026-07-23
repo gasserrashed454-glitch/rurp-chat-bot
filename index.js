@@ -31,8 +31,8 @@ const ALLOWED_CHANNELS = new Set([
     '1528332597036322907',
 ]);
 
-const MISTRAL_MODEL_VISION = 'pixtral-large-latest'; // supports images
-const MISTRAL_MODEL_TEXT   = 'mistral-large-latest';
+const MISTRAL_MODEL_VISION = 'pixtral-large-latest';  // supports images
+const MISTRAL_MODEL_TEXT   = 'mistral-small-latest';  // faster, lower latency
 const MAX_HISTORY          = 20;   // messages kept in memory per channel
 const MAX_SYNC_CONTEXT     = 120;  // synced messages fed into system prompt
 const SYNC_PER_CHANNEL     = 200;  // messages fetched per channel on .sync
@@ -134,6 +134,7 @@ function buildSystemPrompt() {
         : '';
     return (
         `You are a chat assistant in the RURP Discord server. ` +
+        `Users are already members of RURP — never tell them to join the server or use the invite link. ` +
         `You can talk about any topic. Keep responses short and to the point — do not over-explain or pad answers. ` +
         `Only go into detail if the user specifically asks for it. ` +
         `You do not use emojis. No lectures. If something is harmful or illegal, decline in one sentence. ` +
@@ -170,7 +171,7 @@ async function callMistral(channelId, userContent, hasImage) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${key}`,
             },
-            body: JSON.stringify({ model, messages, max_tokens: 1024, temperature: 0.6 }),
+            body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.6 }),
         });
 
         if (res.status === 429 || res.status === 401) {
